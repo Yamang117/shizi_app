@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#3d9a7b">
+<meta name="description" content="拾字：英文單字筆記本、拍照辨識與間隔複習。">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="拾字">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" href="./apple-touch-icon.png">
+<title>拾字</title>
+<style>
+:root{--bg:#f3f7f5;--card:#fff;--ink:#1d2b26;--sub:#6b7c75;--line:#e1e9e5;--g:#3d9a7b;--g2:#e3f3ec;--gt:#fff;--warn:#f6ecd9;--warni:#8a5a12;--bad:#fbe9e7;--badi:#a8433c;color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#121a17;--card:#1b2622;--ink:#e6efeb;--sub:#93a69d;--line:#2a3833;--g:#4fb392;--g2:#1f3a30;--gt:#0f1a16;--warn:#3a3020;--warni:#e8c27a;--bad:#3b2422;--badi:#f0a29b;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#121a17;--card:#1b2622;--ink:#e6efeb;--sub:#93a69d;--line:#2a3833;--g:#4fb392;--g2:#1f3a30;--gt:#0f1a16;--warn:#3a3020;--warni:#e8c27a;--bad:#3b2422;--badi:#f0a29b;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 "PingFang TC","Noto Sans TC","Microsoft JhengHei",system-ui,sans-serif}
+#app{max-width:440px;margin:0 auto;padding:20px 18px 96px;min-height:100vh}
+h1{font-size:28px;margin:4px 0 2px;letter-spacing:.02em}h2{font-size:15px;margin:24px 0 10px;color:var(--sub);font-weight:600}
+.sub{color:var(--sub);font-size:13px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px 16px;margin-bottom:10px}
+.nb{cursor:pointer}.row{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.pill{background:var(--g2);color:var(--g);font-size:12px;padding:2px 10px;border-radius:99px;white-space:nowrap}
+.pill.x{background:var(--warn);color:var(--warni)}
+.hero{background:var(--g2);border-radius:20px;padding:18px 20px;margin:14px 0 4px;display:flex;align-items:baseline;gap:10px}
+.hero .big{font-size:44px;font-weight:700;color:var(--g);line-height:1}
+button{font:inherit;cursor:pointer;border:0;color:inherit}
+.btn{width:100%;background:var(--g);color:var(--gt);padding:14px;border-radius:14px;font-weight:600;margin-top:14px}
+.btn:disabled{opacity:.4;cursor:default}
+.btn.ghost{background:var(--card);color:var(--ink);border:1px solid var(--line)}
+.fab{position:fixed;right:max(18px,calc(50% - 202px));bottom:calc(22px + env(safe-area-inset-bottom,0px));width:56px;height:56px;border-radius:50%;background:var(--g);color:var(--gt);font-size:30px;line-height:1;box-shadow:0 4px 14px rgba(0,0,0,.18)}
+.back{background:none;color:var(--sub);padding:4px 0;font-size:14px}
+label{display:block;font-size:13px;color:var(--sub);margin:18px 0 6px}
+input,textarea{width:100%;font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px}
+textarea{min-height:96px;resize:vertical}
+.chips{display:flex;gap:8px;flex-wrap:wrap}
+.chip{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 16px}
+.chip.on{background:var(--g2);border-color:var(--g);color:var(--g);font-weight:600}
+.note{margin-top:14px;padding:12px 14px;background:var(--g2);border-radius:12px;font-size:14px}
+.bar{height:8px;background:var(--line);border-radius:9px;overflow:hidden;margin:8px 0}.bar i{display:block;height:100%;background:var(--g)}
+.w{display:flex;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}.w:last-child{border:0}
+.w b{display:block}.w span{font-size:13px;color:var(--sub)}
+.top{display:flex;justify-content:space-between;align-items:center}
+.flash{background:var(--card);border:1px solid var(--line);border-radius:22px;min-height:300px;margin:18px 0;padding:28px 22px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;cursor:pointer;gap:12px}
+.term{font-size:34px;font-weight:700;line-height:1.25;word-break:break-word}.def{font-size:20px;line-height:1.5}.ex{color:var(--sub);font-style:italic}
+.small{font-size:14px;color:var(--sub)}
+.rate{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.rate button{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px 2px;font-size:14px}
+.rate small{display:block;color:var(--sub);font-size:12px;margin-top:2px}
+.rate .a{background:var(--bad);color:var(--badi)}.rate .h{background:var(--warn);color:var(--warni)}.rate .g{background:var(--g2);color:var(--g)}
+.stat{display:grid;grid-template-columns:1fr 1fr;gap:10px}.stat .card{text-align:center;margin:0}.stat b{font-size:26px;display:block;color:var(--g)}
+.msg{color:var(--g);font-size:14px;margin-top:8px}.err{color:var(--badi);font-size:14px;margin-top:8px}
+.link{background:none;color:var(--sub);font-size:13px;text-decoration:underline;padding:8px 0}
+.foot{margin-top:28px;text-align:center}
+.gear{background:none;font-size:22px;color:var(--sub);padding:4px 8px}
+.prev{width:100%;max-height:320px;object-fit:contain;border-radius:14px;margin-top:12px;background:var(--card);border:1px solid var(--line)}
+.it{display:flex;gap:10px;align-items:flex-start}.it input[type=checkbox]{width:22px;height:22px;margin-top:10px;flex:none;accent-color:var(--g)}
+.it .f{flex:1;display:flex;flex-direction:column;gap:8px;min-width:0}.it textarea{min-height:60px}
+.sp{display:inline-block;width:14px;height:14px;border:2px solid currentColor;border-top-color:transparent;border-radius:50%;animation:sp 1s linear infinite;vertical-align:-2px;margin-right:8px}@keyframes sp{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+const $=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const KEY='shizi-v1';let S={nbs:[],off:0};
+try{const r=localStorage.getItem(KEY);if(r){const parsed=JSON.parse(r);if(parsed&&Array.isArray(parsed.nbs))S={...S,...parsed};}}catch(e){}
+if(!Array.isArray(S.nbs))S.nbs=[];if(!Number.isFinite(S.off))S.off=0;
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){console.warn('無法儲存資料',e)}};
+const uid=()=>Math.random().toString(36).slice(2,9);
+const dn=d=>Math.floor(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate())/864e5);
+const today=()=>dn(new Date())+(S.off||0);
+const dstr=n=>{const d=new Date(n*864e5);return d.getUTCFullYear()+'/'+(d.getUTCMonth()+1)+'/'+d.getUTCDate()};
+const iso=n=>new Date(n*864e5).toISOString().slice(0,10);
+const get=id=>S.nbs.find(n=>n.id===id);
+
+/* ===== Deadline scheduler ===== */
+const P={20:{g:1,e:3,m:1.8},30:{g:1,e:4,m:2.2},40:{g:2,e:5,m:2.5}};
+function plan(nb,t=today()){const R=nb.deadline-t,Sd=Math.max(3,Math.round(R*.2));return{R,sprint:R<=Sd,L:Math.max(1,R-Sd)}}
+function nextInterval(nb,c,r,t=today()){
+  if(r==='again')return 0;
+  const p=P[nb.mode],{R,sprint}=plan(nb,t);let iv;
+  if(c.state==='new')iv=r==='hard'?1:r==='good'?p.g:p.e;
+  else if(c.state==='learning'){iv=1}
+  else{const m=r==='hard'?1.2:r==='good'?p.m:p.m*1.3;iv=Math.max(1,Math.round(c.iv*m))}
+  if(sprint)iv=Math.min(iv,2);
+  return Math.max(1,Math.min(iv,R-1));
+}
+function build(nb,t=today()){
+  const pl=plan(nb,t);
+  const due=nb.cards.filter(c=>c.state!=='new'&&c.due<=t);
+  const nw=nb.cards.filter(c=>c.state==='new');
+  const intro=nb.cards.filter(c=>c.intro===t).length;
+  const quota=(pl.sprint||pl.R<=0)?0:Math.ceil((nw.length+intro)/pl.L);
+  return{pl,due,take:nw.slice(0,Math.max(0,quota-intro)),quota};
+}
+const lab=n=>n===0?'稍後重試':n+' 天';
+
+/* ===== Data ===== */
+const mk=(term,def,src,ex,pos)=>({id:uid(),term,def,src,ex:ex||'',pos:pos||'',state:'new',iv:0,due:0});
+const SAMPLE=[["despite","without being affected by something; even though","ai"],["in spite of","used to show that something is true although something else might have prevented it","ai"],["on the contrary","used to say that the opposite of what was just said is true","ai"],["whereas","used to compare two things and show how they are different","ai"],["abstract","existing as an idea, but not having a physical form"],["at the back of your mind","not thinking about something now, but knowing that it exists or is true"],["category","a group of things, people, or ideas that have similar qualities"],["complex","consisting of several different parts; not simple"],["comprehensive","including many details or aspects of something"],["depressed","sad; unhappy"],["device","a machine or piece of equipment that does a particular thing"],["get your thoughts together","to prepare to speak or write by organizing ideas in your mind"],["interpret","to explain or work out the meaning of something"],["maximize","to get the most benefit from"],["reluctant","unwilling; not happy about doing something"],["solely","alone; not involving anything or anyone else"]];
+function addCards(nb,rows){let n=0,d=0;rows.forEach(([t,df,s,ex,pos])=>{if(!t)return;if(nb.cards.some(c=>c.term.toLowerCase()===t.toLowerCase())){d++;return}nb.cards.push(mk(t,df||'',s||'user',ex,pos));n++});return '已加入 '+n+' 個單字'+(d?'，略過 '+d+' 個重複':'')}
+
+/* ===== Views ===== */
+let V={n:'home'},sess=null;
+const go=(n,id)=>{V={n,id,f:{name:'',days:20,date:0}};render();window.scrollTo(0,0)};
+const back=n=>'<button class="back" onclick="go(\''+n+'\''+(n==='detail'?',V.id':'')+')">‹ 返回</button>';
+function home(){
+  const t=today();let sum=0;
+  const items=S.nbs.map(nb=>{const b=build(nb);const n=b.due.length+b.take.length;sum+=n;const R=b.pl.R;
+    return '<div class="card nb" onclick="go(\'detail\',\''+nb.id+'\')"><div class="row"><b>'+esc(nb.name)+'</b>'+(n?'<span class="pill">今日 '+n+' 字</span>':'')+'</div><div class="sub">'+nb.cards.length+' 個單字　'+(R>0?dstr(nb.deadline)+' 截止，還有 '+R+' 天':'已到期')+'</div></div>'}).join('');
+  return '<div class="row"><h1>拾字</h1><button class="gear" aria-label="設定" onclick="go(\'settings\')">⚙</button></div><div class="sub">'+dstr(t)+(S.off?'（測試：已快轉 '+S.off+' 天）':'')+'</div>'
+  +'<div class="hero"><div class="big">'+sum+'</div><div>個單字等你複習</div></div><h2>我的筆記本</h2>'
+  +(items||'<p class="sub">還沒有筆記本。按右下角「+」，建立第一本。</p>')
+  +'<p class="sub foot">原型版：資料只存在這個瀏覽器裡。</p><button class="fab" aria-label="新增筆記本" onclick="go(\'new\')">+</button>';
+}
+function newv(){
+  const f=V.f,days=f.date?f.date-today():f.days;
+  return back('home')+'<h1>新增筆記本</h1><label for="nm">筆記本名稱</label><input id="nm" value="'+esc(f.name)+'" maxlength="20" oninput="V.f.name=this.value" placeholder="例如：日常英語">'
+  +'<label>希望多久完成？</label><div class="chips">'+[20,30,40].map(d=>'<button class="chip '+(!f.date&&f.days===d?'on':'')+'" onclick="V.f.date=0;V.f.days='+d+';render()">'+d+' 天</button>').join('')+'<button class="chip '+(f.date?'on':'')+'" onclick="V.f.date=today()+7;render()">自訂日期</button></div>'
+  +(f.date?'<input type="date" style="margin-top:10px" value="'+iso(f.date)+'" min="'+iso(today()+3)+'" onchange="V.f.date=Math.floor(Date.parse(this.value)/864e5);render()">':'')
+  +'<div class="note">預計完成日：'+dstr(today()+days)+'（'+days+' 天後）</div>'+(V.err?'<div class="err">'+V.err+'</div>':'')
+  +'<button class="btn" onclick="createNb()">建立筆記本</button>';
+}
+function createNb(){
+  const f=V.f,name=f.name.trim(),days=f.date?f.date-today():f.days;
+  if(!name){V.err='請輸入筆記本名稱。';return render()}
+  if(days<3){V.err='期限至少要 3 天後。';return render()}
+  const mode=[20,30,40].reduce((a,b)=>Math.abs(b-days)<Math.abs(a-days)?b:a);
+  const nb={id:uid(),name,start:today(),deadline:today()+days,mode,cards:[]};
+  S.nbs.push(nb);save();go('detail',nb.id);
+}
+function detail(){
+  const nb=get(V.id);if(!nb)return home();
+  const b=build(nb),n=b.due.length+b.take.length,pl=b.pl,learned=nb.cards.filter(c=>c.state!=='new').length,pct=nb.cards.length?Math.round(learned/nb.cards.length*100):0;
+  const badge=pl.R<=0?'<span class="pill x">已到期</span>':pl.sprint?'<span class="pill x">衝刺期</span>':'<span class="pill">學習期</span>';
+  return back('home')+'<div class="row"><h1>'+esc(nb.name)+'</h1>'+badge+'</div>'
+  +'<div class="card"><div class="row"><span>'+(pl.R>0?'還有 '+pl.R+' 天（'+dstr(nb.deadline)+' 截止）':'已超過期限')+'</span><span class="sub">'+nb.mode+' 天模式</span></div>'
+  +'<div class="bar"><i style="width:'+pct+'%"></i></div><div class="sub">已學 '+learned+' ／ '+nb.cards.length+' 個單字'+(b.quota?'　每日新卡約 '+b.quota+' 張':'')+'</div></div>'
+  +'<button class="btn" '+(n?'':'disabled')+' onclick="startReview(\''+nb.id+'\')">'+(n?'複習今日 '+n+' 字':'今天沒有要複習的字')+'</button>'
+  +'<button class="btn ghost" onclick="go(\'scan\',\''+nb.id+'\')">📷 拍照新增單字 (Gemini)</button>'
+  +'<h2>新增單字</h2><textarea id="ta" placeholder="每行一個：單字 | 英文解釋&#10;例如：resilient | able to recover quickly"></textarea>'
+  +'<button class="btn ghost" onclick="addWords()">加入單字</button>'
+  +'<button class="link" onclick="loadSample()">載入範例單字（16 個）</button>'+(V.msg?'<div class="msg">'+V.msg+'</div>':'')
+  +'<h2>單字（'+nb.cards.length+'）</h2><div class="card">'+(nb.cards.map(c=>'<div class="w"><div><b>'+esc(c.term)+'</b><span>'+esc(c.def||'（尚無解釋）')+'</span></div>'+(c.src==='ai'?'<span class="pill">AI 補充</span>':'')+'</div>').join('')||'<span class="sub">還沒有單字。</span>')+'</div>'
+  +'<h2>測試工具</h2><button class="btn ghost" style="margin-top:0" onclick="S.off++;save();render()">快轉 1 天（目前 +'+(S.off||0)+'）</button>'
+  +'<button class="link" onclick="S.off=0;save();render()">重設日期</button><br>'
+  +'<button class="link" onclick="delNb()">'+(V.arm?'再按一次，確認刪除這本筆記本':'刪除筆記本')+'</button>';
+}
+function addWords(){const nb=get(V.id);const rows=$('#ta').value.split('\n').map(l=>l.trim()).filter(Boolean).map(l=>{const p=l.split('|');return[p[0].trim(),p.slice(1).join('|').trim(),'user']});V.msg=rows.length?addCards(nb,rows):'請先輸入單字。';save();render()}
+function loadSample(){V.msg=addCards(get(V.id),SAMPLE);save();render()}
+function delNb(){if(!V.arm){V.arm=1;return render()}S.nbs=S.nbs.filter(n=>n.id!==V.id);save();go('home')}
+function startReview(id){
+  const nb=get(id),b=build(nb),q=[...b.due,...b.take].map(c=>c.id);
+  sess={id,q,total:q.length,done:0,ok:0,seen:{},completed:{},flip:false};go('review',id);
+}
+function review(){
+  const nb=get(sess.id),c=nb.cards.find(x=>x.id===sess.q[0]),pct=Math.min(100,Math.round(sess.done/Math.max(1,sess.total)*100));
+  const R=[['again','重來','a'],['hard','困難','h'],['good','良好','g'],['easy','簡單','']];
+  return '<div class="top"><button class="back" onclick="go(\'detail\',\''+nb.id+'\')">‹ 結束</button><b>今日複習</b><span class="sub">'+sess.done+' ／ '+sess.total+'</span></div><div class="bar"><i style="width:'+pct+'%"></i></div>'
+  +'<div class="flash" onclick="sess.flip=!sess.flip;render()">'+(sess.flip?'<div class="small">'+esc(c.term)+'</div><div class="def">'+esc(c.def||'（尚無解釋）')+'</div>'+(c.ex?'<div class="ex">'+esc(c.ex)+'</div>':'')+'<div class="small">點一下翻回正面</div>':'<div class="term">'+esc(c.term)+'</div>'+(c.pos?'<div class="small">'+esc(c.pos)+'</div>':'')+'<div class="small">點一下卡片，看英文解釋</div>')+'</div>'
+  +(sess.flip?'<div class="rate">'+R.map(([k,l,cl])=>'<button class="'+cl+'" onclick="rate(\''+k+'\')">'+l+'<small>'+lab(nextInterval(nb,c,k))+'</small></button>').join('')+'</div>':'<p class="small" style="text-align:center">翻面後選擇記得多熟</p>');
+}
+function rate(r){
+  const nb=get(sess.id),id=sess.q[0],c=nb.cards.find(x=>x.id===id),iv=nextInterval(nb,c,r);
+  if(!sess.seen[id]){sess.seen[id]=1;if(r==='good'||r==='easy')sess.ok++}
+  if(c.state==='new')c.intro=today();
+  sess.q.shift();
+  if(iv===0){c.state='learning';c.due=today();sess.q.splice(Math.min(3,sess.q.length),0,id)}
+  else{c.state='review';c.iv=iv;c.due=today()+iv;if(!sess.completed[id]){sess.completed[id]=1;sess.done=Object.keys(sess.completed).length}}
+  sess.flip=false;save();
+  if(!sess.q.length)go('done',sess.id);else render();
+}
+function done(){
+  const nb=get(sess.id),t=today(),span=Math.max(1,nb.deadline-nb.start),prog=Math.max(0,Math.min(100,Math.round((t-nb.start)/span*100)));
+  const tmr=nb.cards.filter(c=>c.state!=='new'&&c.due<=t+1).length;
+  return '<h1 style="margin-top:40px">今天的進度，收下了。</h1><p class="sub">完成 '+sess.total+' 張卡片</p>'
+  +'<div class="stat"><div class="card"><b>'+sess.total+'</b><span class="sub">今日完成</span></div><div class="card"><b>'+Math.round(sess.ok/Math.max(1,sess.total)*100)+'%</b><span class="sub">首答良好率</span></div></div>'
+  +'<div class="card" style="margin-top:10px"><div class="row"><span>距離期限的進度</span><span class="sub">'+prog+'%</span></div><div class="bar"><i style="width:'+prog+'%"></i></div></div>'
+  +'<div class="note">明天待複習：'+tmr+' 張（不含新卡）</div><button class="btn" onclick="go(\'detail\',\''+nb.id+'\')">回到筆記本</button>';
+}
+/* ===== Photo scan (Gemini API) ===== */
+const CK='shizi-cfg';let CFG={key:'',model:'gemini-3.8-flash'};
+try{Object.assign(CFG,JSON.parse(localStorage.getItem(CK)||'{}'))}catch(e){}
+// 將已停用的舊模型自動更新；其他自訂模型則保留給使用者。
+if(!CFG.model||['gemini-1.5-flash','gemini-1.5-pro','gemini-2.0-flash','gemini-2.0-flash-lite','gemini-2.5-flash'].includes(CFG.model))CFG.model='gemini-3.8-flash';
+const saveCfg=()=>{try{localStorage.setItem(CK,JSON.stringify(CFG))}catch(e){console.warn('無法儲存設定',e)}};
+const PROMPT='You are reading a photo of a vocabulary notebook or textbook page. List the English words and phrases the learner is studying.\n'
++'Rules:\n'
++'1. Only include words or phrases that are fully visible and clearly legible. Skip anything cut off at an edge, blurry, or part of a neighbouring page.\n'
++'2. If the photo already shows an English definition for an item, copy it exactly and set definition_source to "photo".\n'
++'3. If an item has no definition in the photo, write a simple learner-dictionary definition of 15 words or fewer and set definition_source to "ai".\n'
++'4. For phrases (more than one word) set pos to "phrase". Otherwise use n., v., adj., adv., prep., conj., etc.\n'
++'5. Never add words that are not in the photo. Handwriting may be messy: if unsure about a word, still include it and set needs_review to true.\n'
++'6. Give one short natural example sentence (15 words or fewer) for each item.\n'
++'Return ONLY a JSON array. Each element: {"term":string,"pos":string,"definition":string,"definition_source":"photo" or "ai","example":string,"needs_review":boolean}';
+function readImg(file){return new Promise((ok,bad)=>{const u=URL.createObjectURL(file),im=new Image();
+  im.onload=()=>{const k=Math.min(1,1600/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=Math.round(im.width*k);c.height=Math.round(im.height*k);c.getContext('2d').drawImage(im,0,0,c.width,c.height);URL.revokeObjectURL(u);ok(c.toDataURL('image/jpeg',.85))};
+  im.onerror=()=>{URL.revokeObjectURL(u);bad(new Error('無法讀取這張圖片，請換一張。'))};im.src=u})}
+async function pick(inp){const f=inp.files[0];if(!f)return;V.err='';V.img='';if(!f.type.startsWith('image/')){V.err='請選擇圖片檔案。';inp.value='';return render()}if(f.size>20*1024*1024){V.err='圖片太大，請選擇 20 MB 以下的圖片。';inp.value='';return render()}try{V.img=await readImg(f)}catch(e){V.err=e.message}finally{inp.value=''}render()}
+async function runScan(){
+  if(!CFG.key){V.err='請先到首頁右上角的設定，輸入 Gemini API 金鑰。';return render()}
+  const model=(CFG.model||'gemini-3.8-flash').trim();
+  if(!model){V.err='請輸入模型名稱。';return render()}
+  CFG.model=model;
+  V.busy=1;V.err='';render();
+  try{
+    const r=await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(model)+':generateContent',{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':CFG.key},
+      body:JSON.stringify({contents:[{parts:[{text:PROMPT},{inline_data:{mime_type:'image/jpeg',data:V.img.split(',')[1]}}]}],generationConfig:{responseMimeType:'application/json',temperature:0.2}})});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok){const m=(j.error&&j.error.message)||'';
+      throw new Error(r.status===400&&/API key/i.test(m)?'API 金鑰無效，請到設定重新輸入。':r.status===429?'已超過免費額度，或請求太頻繁，請稍後再試。':r.status===404?'找不到模型「'+model+'」，請到設定改用官方支援的模型名稱。':r.status===403?'API 金鑰沒有使用此模型的權限，請確認金鑰、專案與模型可用性。':'辨識失敗（'+r.status+'）：'+m)}
+    const parts=(j.candidates&&j.candidates[0]&&j.candidates[0].content&&j.candidates[0].content.parts)||[];
+    const txt=parts.map(p=>p.text||'').join('');
+    if(!txt)throw new Error(j.promptFeedback&&j.promptFeedback.blockReason?'這張照片被安全機制擋下，請換一張。':'沒有收到辨識結果，請再試一次。');
+    let arr=JSON.parse(txt.replace(/^\s*```(?:json)?\s*/i,'').replace(/\s*```\s*$/,'').trim());
+    if(!Array.isArray(arr)){
+      if(arr&&Array.isArray(arr.items))arr=arr.items;
+      else if(arr&&Array.isArray(arr.words))arr=arr.words;
+      else throw new Error('辨識結果不是有效的單字清單，請再試一次。');
+    }
+    const nb=get(V.id);
+    if(!nb)throw new Error('找不到目前的筆記本，請返回首頁重新操作。');
+    const seenTerms=new Set(nb.cards.map(c=>String(c.term).toLowerCase()));
+    V.res=arr.filter(x=>x&&String(x.term||'').trim()).map(x=>{const term=String(x.term).trim(),key=term.toLowerCase(),dup=seenTerms.has(key);seenTerms.add(key);
+      return{term,pos:String(x.pos||''),def:String(x.definition||''),src:x.definition_source==='photo'?'photo':'ai',ex:String(x.example||''),rev:!!x.needs_review,dup,keep:!dup}});
+    V.busy=0;V.n='confirm';
+  }catch(e){V.busy=0;V.err=e instanceof TypeError?'無法連線到 Google。若你是在預覽頁開啟，這裡不允許對外連線，請改用自己的網址（例如 GitHub Pages）。':e instanceof SyntaxError?'辨識結果格式有誤，請再試一次。':e.message}
+  render();
+}
+function scan(){
+  const nb=get(V.id);
+  return back('detail')+'<h1>拍照新增</h1><p class="sub">單字會加入「'+esc(nb.name)+'」。拍清楚、光線均勻，辨識會更準。</p>'
+  +'<input type="file" id="cam" accept="image/*" capture="environment" hidden onchange="pick(this)"><input type="file" id="gal" accept="image/*" hidden onchange="pick(this)">'
+  +'<div class="chips" style="margin-top:12px"><button class="chip" onclick="$(\'#cam\').click()">拍照</button><button class="chip" onclick="$(\'#gal\').click()">從相簿選取</button></div>'
+  +(V.img?'<img class="prev" alt="照片預覽" src="'+V.img+'">':'')
+  +(V.err?'<div class="err">'+esc(V.err)+'</div>':'')
+  +'<button class="btn" '+(V.img&&!V.busy?'':'disabled')+' onclick="runScan()">'+(V.busy?'<span class="sp"></span>辨識中…':'開始辨識')+'</button>';
+}
+function confirmv(){
+  const results=Array.isArray(V.res)?V.res:[];
+  const n=results.filter(item=>item.keep&&item.term.trim()).length;
+  const rows=results.map((item,index)=>'<div class="card it"><input type="checkbox" aria-label="加入" '+(item.keep?'checked':'')+' onchange="V.res['+index+'].keep=this.checked;render()"><div class="f">'
+    +'<label>英文單字／片語</label><input value="'+esc(item.term)+'" aria-label="單字" oninput="V.res['+index+'].term=this.value">'
+    +'<label>英文解釋</label><textarea aria-label="英文解釋" oninput="V.res['+index+'].def=this.value">'+esc(item.def)+'</textarea>'
+    +'<label>例句</label><textarea aria-label="例句" oninput="V.res['+index+'].ex=this.value">'+esc(item.ex||'')+'</textarea>'
+    +'<div>'+(item.pos?'<span class="pill">'+esc(item.pos)+'</span> ':'')+(item.src==='photo'?'<span class="pill">照片原文</span> ':item.src==='ai'?'<span class="pill">AI 補充</span> ':'')+(item.dup?'<span class="pill x">已存在</span> ':'')+(item.rev?'<span class="pill x">請確認</span>':'')+'</div></div></div>').join('');
+  return '<button class="back" onclick="go(\'scan\',V.id)">‹ 重拍</button><h1>確認單字</h1><p class="sub">辨識到 '+results.length+' 個項目，已選 '+n+' 個。可修改單字、解釋與例句，取消勾選即可略過。</p>'
+  +(rows||'<div class="note">沒有辨識到單字。請重拍，讓文字更清楚。</div>')
+  +'<button class="btn" '+(n?'':'disabled')+' onclick="addConfirmed()">加入筆記本（'+n+'）</button>';
+}
+function addConfirmed(){
+  const nb=get(V.id);
+  if(!nb){V.err='找不到目前的筆記本，請返回首頁重新操作。';V.n='home';return render()}
+  const chosen=(Array.isArray(V.res)?V.res:[]).filter(x=>x.keep&&String(x.term||'').trim());
+  V.msg=addCards(nb,chosen.map(x=>[String(x.term).trim(),String(x.def||'').trim(),x.src,String(x.ex||''),String(x.pos||'')]));
+  save();V.n='detail';V.img='';V.res=null;render();window.scrollTo(0,0);
+}
+function settings(){
+  return back('home')+'<h1>設定</h1><label for="k">Gemini API 金鑰</label><input id="k" type="password" value="'+esc(CFG.key)+'" autocomplete="off" oninput="CFG.key=this.value.trim()">'
+  +'<p class="sub">請從 Google AI Studio 管理 API 金鑰。金鑰會存於此瀏覽器的本機儲存空間；請勿在共用裝置輸入，也不要把含有金鑰的頁面公開分享。</p>'
+  +'<label for="m">模型名稱</label><input id="m" list="ml" value="'+esc(CFG.model)+'" oninput="CFG.model=this.value.trim()"><datalist id="ml"><option value="gemini-3.8-flash"><option value="gemini-3.6-flash"><option value="gemini-3.5-flash-lite"><option value="gemini-3.1-flash-lite"></datalist>'
+  +'<button class="btn" onclick="saveCfg();V.msg=\'已儲存\';render()">儲存</button>'+(V.msg?'<div class="msg">'+V.msg+'</div>':'');
+}
+const VIEWS={home,new:newv,detail,review,done,scan,confirm:confirmv,settings};
+function render(){
+  if(V.n==='review'&&(!sess||!sess.q.length))V.n='home';
+  $('#app').innerHTML=VIEWS[V.n]();
+}
+render();
+</script>
+
+<script>
+// PWA：在 HTTPS 託管環境啟用離線殼層快取；file:// 本機預覽時會自動略過。
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./service-worker.js').catch(err => {
+      console.warn('拾字：Service Worker 註冊失敗，仍可在線上使用。', err);
+    });
+  });
+}
+</script>
+</body>
+</html>
