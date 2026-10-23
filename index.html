@@ -252,6 +252,28 @@ function readImg(file){return new Promise((ok,bad)=>{const u=URL.createObjectURL
   im.onload=()=>{const k=Math.min(1,1600/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=Math.round(im.width*k);c.height=Math.round(im.height*k);c.getContext('2d').drawImage(im,0,0,c.width,c.height);URL.revokeObjectURL(u);ok(c.toDataURL('image/jpeg',.85))};
   im.onerror=()=>{URL.revokeObjectURL(u);bad(new Error('無法讀取這張圖片，請換一張。'))};im.src=u})}
 async function pick(inp){const f=inp.files[0];if(!f)return;V.err='';V.img='';if(!f.type.startsWith('image/')){V.err='請選擇圖片檔案。';inp.value='';return render()}if(f.size>20*1024*1024){V.err='圖片太大，請選擇 20 MB 以下的圖片。';inp.value='';return render()}try{V.img=await readImg(f)}catch(e){V.err=e.message}finally{inp.value=''}render()}
+// Gemini 暫時忙碌或短暫服務錯誤時，採有限次數的指數退避重試。
+const sleepMs=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+async function fetchGeminiWithRetry(url, options){
+  const maxAttempts=3; // 總共最多 3 次，避免無限重試與額外消耗免費額度
+  for(let attempt=1;attempt<=maxAttempts;attempt++){
+    const r=await fetch(url,options);
+    const j=await r.clone().json().catch(()=>({}));
+    if(r.ok)return {r,j,attempts:attempt};
+    const message=String(j?.error?.message||'');
+    const details=(message+' '+JSON.stringify(j)).toLowerCase();
+    const temporaryStatus=[408,500,502,503,504].includes(r.status);
+    // 429 只有在看起來是每分鐘/短時間限流時重試；每日額度耗盡不反覆呼叫。
+    const dailyQuota=/quota_exceeded|per day|per-day|daily quota|daily limit|requests per day|tokens per day|perday|per_day|per_model_per_day/.test(details) || (/quota/.test(details)&&!/per minute|per-minute|per second|per-second|requests_per_minute|tokens_per_minute/.test(details));
+    const temporaryRateLimit=r.status===429&&!dailyQuota&&/per minute|per second|rate limit|too many requests|temporarily|try again|retry/.test(details);
+    if(!(temporaryStatus||temporaryRateLimit)||attempt===maxAttempts)return {r,j,attempts:attempt};
+    const delay=1000*Math.pow(2,attempt-1)+Math.floor(Math.random()*500); // 1s、2s，加入隨機抖動
+    V.status='Gemini 服務目前繁忙，'+Math.ceil(delay/1000)+' 秒後自動重試（'+attempt+'/'+(maxAttempts-1)+'）…';
+    render();
+    await sleepMs(delay);
+  }
+  throw new Error('無法完成辨識，請稍後再試。');
+}
 async function runScan(){
   if(V.busy)return;
   const nb=get(V.id);
@@ -262,13 +284,27 @@ async function runScan(){
   if(!model){V.err='請輸入模型名稱。';return render()}
   CFG.model=model;
   const prompt=makePrompt(nb);
-  V.busy=1;V.err='';render();
+  V.busy=1;V.err='';V.status='正在送出辨識請求…';render();
   try{
-    const r=await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(model)+':generateContent',{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':CFG.key},
+    const url='https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(model)+':generateContent';
+    const result=await fetchGeminiWithRetry(url,{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':CFG.key},
       body:JSON.stringify({contents:[{parts:[{text:prompt},{inline_data:{mime_type:'image/jpeg',data:V.img.split(',')[1]}}]}],generationConfig:{responseMimeType:'application/json',temperature:0.1,maxOutputTokens:4096}})});
-    const j=await r.json().catch(()=>({}));
-    if(!r.ok){const m=(j.error&&j.error.message)||'';
-      throw new Error(r.status===400&&/API key/i.test(m)?'API 金鑰無效，請到設定重新輸入。':r.status===429?'已超過免費額度，或請求太頻繁，請稍後再試。':r.status===404?'找不到模型「'+model+'」，請到設定改用官方支援的模型名稱。':r.status===403?'API 金鑰沒有使用此模型的權限，請確認金鑰、專案與模型可用性。':'辨識失敗（'+r.status+'）：'+m)}
+    const {r,j,attempts}=result;
+    const m=String(j?.error?.message||'');
+    if(!r.ok){
+      const detail=m?('：'+m):'';
+      const lower=(m+' '+JSON.stringify(j)).toLowerCase();
+      let message;
+      if(r.status===400&&/api key/i.test(m)) message='API 金鑰無效，請到設定重新輸入。';
+      else if(r.status===429&&(/quota_exceeded|per day|per-day|daily quota|daily limit|requests per day|tokens per day|perday|per_day|per_model_per_day/.test(lower)||(/quota/.test(lower)&&!/per minute|per-minute|per second|per-second|requests_per_minute|tokens_per_minute/.test(lower)))) message='目前已達此模型的免費配額或每日額度（429）。自動重試不一定能解決配額耗盡；請到 Google AI Studio 查看此模型的限制，稍後再試，或手動選擇仍有額度且支援的模型。'
+      else if(r.status===429) message='目前請求過於頻繁（429），程式已嘗試重試 '+(attempts-1)+' 次仍未成功。請等一會兒再試，不要連續重複送出。'+detail;
+      else if(r.status===503) message='Gemini 服務目前繁忙（503），程式已自動重試 '+(attempts-1)+' 次仍未成功。這通常是服務暫時壅塞，不一定是你的金鑰或程式有問題；請稍後再試。'+detail;
+      else if([408,500,502,504].includes(r.status)) message='Gemini 暫時無法完成請求（'+r.status+'），已自動重試 '+(attempts-1)+' 次仍未成功。請稍後再試。'+detail;
+      else if(r.status===404) message='找不到模型「'+model+'」，請到設定改用官方支援且帳戶可使用的模型名稱。'+detail;
+      else if(r.status===403) message='API 金鑰沒有使用此模型的權限，請確認金鑰、專案與模型可用性。'+detail;
+      else message='辨識失敗（'+r.status+'）'+detail;
+      throw new Error(message);
+    }
     const parts=(j.candidates&&j.candidates[0]&&j.candidates[0].content&&j.candidates[0].content.parts)||[];
     const txt=parts.map(p=>p.text||'').join('');
     if(!txt)throw new Error(j.promptFeedback&&j.promptFeedback.blockReason?'這張照片被安全機制擋下，請換一張。':'沒有收到辨識結果，請再試一次。');
@@ -282,8 +318,11 @@ async function runScan(){
     const seenTerms=new Set(nb.cards.filter(c=>(c.language||currentLang)===currentLang).map(c=>termKey(c.term)));
     V.res=arr.filter(x=>x&&String(x.term||'').trim()).map(x=>{const term=String(x.term).trim(),key=termKey(term),dup=seenTerms.has(key);seenTerms.add(key);
       return{term,pos:String(x.pos||''),def:String(x.definition||''),src:x.definition_source==='photo'?'photo':'ai',ex:String(x.example||''),rev:!!x.needs_review,dup,keep:!dup}});
-    V.busy=0;V.n='confirm';
-  }catch(e){V.busy=0;V.err=e instanceof TypeError?'無法連線到 Google。若你是在預覽頁開啟，這裡不允許對外連線，請改用自己的網址（例如 GitHub Pages）。':e instanceof SyntaxError?'辨識結果格式有誤，請再試一次。':e.message}
+    V.busy=0;V.status='';V.n='confirm';
+  }catch(e){
+    V.busy=0;V.status='';
+    V.err=e instanceof TypeError?'無法連線到 Google。請確認網路與 GitHub Pages 網址；直接以 file:// 開啟時可能無法呼叫 API。':e instanceof SyntaxError?'辨識結果格式有誤，請再試一次。':e.message;
+  }
   render();
 }
 function scan(){
@@ -293,6 +332,7 @@ function scan(){
   +'<div class="chips" style="margin-top:12px"><button class="chip" onclick="$(\'#cam\').click()">拍照</button><button class="chip" onclick="$(\'#gal\').click()">從相簿選取</button></div>'
   +(V.img?'<img class="prev" alt="照片預覽" src="'+V.img+'">':'')
   +(V.err?'<div class="err">'+esc(V.err)+'</div>':'')
+  +(V.status?'<div class="note" role="status">'+esc(V.status)+'</div>':'')
   +'<button class="btn" '+(V.img&&!V.busy?'':'disabled')+' onclick="runScan()">'+(V.busy?'<span class="sp"></span>辨識中…':'開始辨識')+'</button>';
 }
 function confirmv(){

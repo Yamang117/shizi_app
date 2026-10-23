@@ -1,5 +1,5 @@
 /* 拾字 PWA：只快取本 App 的靜態介面，不攔截或快取 Gemini API、照片或筆記資料。 */
-const CACHE_NAME = 'shizi-shell-v2-multilingual';
+const CACHE_NAME = 'shizi-shell-v3-retry';
 const BASE = self.registration.scope;
 const SHELL_URLS = [
   new URL('index.html', BASE).href,
