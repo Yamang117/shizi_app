@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#3d9a7b">
-<meta name="description" content="拾字：英文單字筆記本、拍照辨識與間隔複習。">
+<meta name="description" content="拾字：多國語言單字筆記本、拍照辨識與間隔複習。">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="拾字">
@@ -34,7 +34,7 @@ button{font:inherit;cursor:pointer;border:0;color:inherit}
 .fab{position:fixed;right:max(18px,calc(50% - 202px));bottom:calc(22px + env(safe-area-inset-bottom,0px));width:56px;height:56px;border-radius:50%;background:var(--g);color:var(--gt);font-size:30px;line-height:1;box-shadow:0 4px 14px rgba(0,0,0,.18)}
 .back{background:none;color:var(--sub);padding:4px 0;font-size:14px}
 label{display:block;font-size:13px;color:var(--sub);margin:18px 0 6px}
-input,textarea{width:100%;font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px}
+input,textarea,select{width:100%;font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px}
 textarea{min-height:96px;resize:vertical}
 .chips{display:flex;gap:8px;flex-wrap:wrap}
 .chip{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 16px}
@@ -78,6 +78,41 @@ const dstr=n=>{const d=new Date(n*864e5);return d.getUTCFullYear()+'/'+(d.getUTC
 const iso=n=>new Date(n*864e5).toISOString().slice(0,10);
 const get=id=>S.nbs.find(n=>n.id===id);
 
+/* ===== Multilingual notebook support ===== */
+const LANGS=[
+  {code:'en',label:'英文 English',api:'English'},
+  {code:'ja',label:'日文 日本語',api:'Japanese'},
+  {code:'ko',label:'韓文 한국어',api:'Korean'},
+  {code:'zh-TW',label:'繁體中文',api:'Traditional Chinese'},
+  {code:'fr',label:'法文 Français',api:'French'},
+  {code:'es',label:'西班牙文 Español',api:'Spanish'},
+  {code:'de',label:'德文 Deutsch',api:'German'},
+  {code:'it',label:'義大利文 Italiano',api:'Italian'},
+  {code:'pt',label:'葡萄牙文 Português',api:'Portuguese'},
+  {code:'ru',label:'俄文 Русский',api:'Russian'},
+  {code:'vi',label:'越南文 Tiếng Việt',api:'Vietnamese'},
+  {code:'th',label:'泰文 ไทย',api:'Thai'},
+  {code:'id',label:'印尼文 Bahasa Indonesia',api:'Indonesian'},
+  {code:'ar',label:'阿拉伯文 العربية',api:'Arabic'}
+];
+const langByCode=code=>LANGS.find(x=>x.code===code)||LANGS[0];
+const langName=code=>langByCode(code).label;
+const langPromptName=code=>langByCode(code).api;
+const langOptions=selected=>LANGS.map(x=>'<option value="'+esc(x.code)+'" '+(x.code===selected?'selected':'')+'>'+esc(x.label)+'</option>').join('');
+const termKey=t=>String(t||'').normalize('NFKC').trim().toLocaleLowerCase();
+
+// Migrate existing notebooks without deleting or resetting any cards or review progress.
+let didMigrate=false;
+S.nbs.forEach(nb=>{
+  if(!nb.studyLang){nb.studyLang='en';didMigrate=true;}
+  // Existing notebooks used English definitions, so preserve their historical language.
+  if(!nb.explainLang){nb.explainLang='en';didMigrate=true;}
+  if(!nb.exampleLang){nb.exampleLang=nb.studyLang||'en';didMigrate=true;}
+  if(!Array.isArray(nb.cards)){nb.cards=[];didMigrate=true;}
+  nb.cards.forEach(c=>{if(!c.language){c.language=nb.studyLang||'en';didMigrate=true;}});
+});
+if(didMigrate)save();
+
 /* ===== Deadline scheduler ===== */
 const P={20:{g:1,e:3,m:1.8},30:{g:1,e:4,m:2.2},40:{g:2,e:5,m:2.5}};
 function plan(nb,t=today()){const R=nb.deadline-t,Sd=Math.max(3,Math.round(R*.2));return{R,sprint:R<=Sd,L:Math.max(1,R-Sd)}}
@@ -101,18 +136,18 @@ function build(nb,t=today()){
 const lab=n=>n===0?'稍後重試':n+' 天';
 
 /* ===== Data ===== */
-const mk=(term,def,src,ex,pos)=>({id:uid(),term,def,src,ex:ex||'',pos:pos||'',state:'new',iv:0,due:0});
+const mk=(term,def,src,ex,pos,language)=>({id:uid(),term,def,src,ex:ex||'',pos:pos||'',language:language||'en',state:'new',iv:0,due:0});
 const SAMPLE=[["despite","without being affected by something; even though","ai"],["in spite of","used to show that something is true although something else might have prevented it","ai"],["on the contrary","used to say that the opposite of what was just said is true","ai"],["whereas","used to compare two things and show how they are different","ai"],["abstract","existing as an idea, but not having a physical form"],["at the back of your mind","not thinking about something now, but knowing that it exists or is true"],["category","a group of things, people, or ideas that have similar qualities"],["complex","consisting of several different parts; not simple"],["comprehensive","including many details or aspects of something"],["depressed","sad; unhappy"],["device","a machine or piece of equipment that does a particular thing"],["get your thoughts together","to prepare to speak or write by organizing ideas in your mind"],["interpret","to explain or work out the meaning of something"],["maximize","to get the most benefit from"],["reluctant","unwilling; not happy about doing something"],["solely","alone; not involving anything or anyone else"]];
-function addCards(nb,rows){let n=0,d=0;rows.forEach(([t,df,s,ex,pos])=>{if(!t)return;if(nb.cards.some(c=>c.term.toLowerCase()===t.toLowerCase())){d++;return}nb.cards.push(mk(t,df||'',s||'user',ex,pos));n++});return '已加入 '+n+' 個單字'+(d?'，略過 '+d+' 個重複':'')}
+function addCards(nb,rows){if(!nb||!Array.isArray(nb.cards))return '找不到筆記本，請返回首頁重試。';let n=0,d=0;const language=nb.studyLang||'en';rows.forEach(([t,df,s,ex,pos])=>{if(!String(t||'').trim())return;const key=termKey(t);if(nb.cards.some(c=>(c.language||language)===language&&termKey(c.term)===key)){d++;return}nb.cards.push(mk(String(t).trim(),df||'',s||'user',ex,pos,language));n++});return '已加入 '+n+' 個單字'+(d?'，略過 '+d+' 個重複':'')}
 
 /* ===== Views ===== */
 let V={n:'home'},sess=null;
-const go=(n,id)=>{V={n,id,f:{name:'',days:20,date:0}};render();window.scrollTo(0,0)};
+const go=(n,id)=>{V={n,id,f:{name:'',days:20,date:0,studyLang:'en',explainLang:'zh-TW',exampleLang:'',exampleLangManual:false}};render();window.scrollTo(0,0)};
 const back=n=>'<button class="back" onclick="go(\''+n+'\''+(n==='detail'?',V.id':'')+')">‹ 返回</button>';
 function home(){
   const t=today();let sum=0;
   const items=S.nbs.map(nb=>{const b=build(nb);const n=b.due.length+b.take.length;sum+=n;const R=b.pl.R;
-    return '<div class="card nb" onclick="go(\'detail\',\''+nb.id+'\')"><div class="row"><b>'+esc(nb.name)+'</b>'+(n?'<span class="pill">今日 '+n+' 字</span>':'')+'</div><div class="sub">'+nb.cards.length+' 個單字　'+(R>0?dstr(nb.deadline)+' 截止，還有 '+R+' 天':'已到期')+'</div></div>'}).join('');
+    return '<div class="card nb" onclick="go(\'detail\',\''+nb.id+'\')"><div class="row"><b>'+esc(nb.name)+'</b>'+(n?'<span class="pill">今日 '+n+' 字</span>':'')+'</div><div class="sub">'+nb.cards.length+' 個單字　'+(R>0?dstr(nb.deadline)+' 截止，還有 '+R+' 天':'已到期')+'</div><div class="sub">學習：'+esc(langName(nb.studyLang||'en'))+'　解釋：'+esc(langName(nb.explainLang||'en'))+'</div></div>'}).join('');
   return '<div class="row"><h1>拾字</h1><button class="gear" aria-label="設定" onclick="go(\'settings\')">⚙</button></div><div class="sub">'+dstr(t)+(S.off?'（測試：已快轉 '+S.off+' 天）':'')+'</div>'
   +'<div class="hero"><div class="big">'+sum+'</div><div>個單字等你複習</div></div><h2>我的筆記本</h2>'
   +(items||'<p class="sub">還沒有筆記本。按右下角「+」，建立第一本。</p>')
@@ -120,10 +155,14 @@ function home(){
 }
 function newv(){
   const f=V.f,days=f.date?f.date-today():f.days;
-  return back('home')+'<h1>新增筆記本</h1><label for="nm">筆記本名稱</label><input id="nm" value="'+esc(f.name)+'" maxlength="20" oninput="V.f.name=this.value" placeholder="例如：日常英語">'
+  return back('home')+'<h1>新增筆記本</h1><label for="nm">筆記本名稱</label><input id="nm" value="'+esc(f.name)+'" maxlength="20" oninput="V.f.name=this.value" placeholder="例如：日常英語、日文 N3">'
+  +'<label for="studyLang">學習語言（要辨識的單字語言）</label><select id="studyLang" onchange="V.f.studyLang=this.value;if(!V.f.exampleLangManual)V.f.exampleLang=this.value;render()">'+langOptions(f.studyLang||'en')+'</select>'
+  +'<label for="explainLang">解釋語言</label><select id="explainLang" onchange="V.f.explainLang=this.value">'+langOptions(f.explainLang||'zh-TW')+'</select>'
+  +'<label for="exampleLang">例句語言</label><select id="exampleLang" onchange="V.f.exampleLang=this.value;V.f.exampleLangManual=true">'+langOptions(f.exampleLang||f.studyLang||'en')+'</select>'
+  +'<div class="note">拍照辨識時會依照這三項設定產生結果。若照片中的解釋不是你選擇的解釋語言，AI 會嘗試翻譯或重新撰寫。</div>'
   +'<label>希望多久完成？</label><div class="chips">'+[20,30,40].map(d=>'<button class="chip '+(!f.date&&f.days===d?'on':'')+'" onclick="V.f.date=0;V.f.days='+d+';render()">'+d+' 天</button>').join('')+'<button class="chip '+(f.date?'on':'')+'" onclick="V.f.date=today()+7;render()">自訂日期</button></div>'
-  +(f.date?'<input type="date" style="margin-top:10px" value="'+iso(f.date)+'" min="'+iso(today()+3)+'" onchange="V.f.date=Math.floor(Date.parse(this.value)/864e5);render()">':'')
-  +'<div class="note">預計完成日：'+dstr(today()+days)+'（'+days+' 天後）</div>'+(V.err?'<div class="err">'+V.err+'</div>':'')
+  +(f.date?'<input type="date" aria-label="自訂截止日期" style="margin-top:10px" value="'+iso(f.date)+'" min="'+iso(today()+3)+'" onchange="if(this.value)V.f.date=Math.floor(Date.parse(this.value)/864e5);render()">':'')
+  +'<div class="note">預計完成日：'+dstr(today()+days)+'（'+days+' 天後）</div>'+(V.err?'<div class="err">'+esc(V.err)+'</div>':'')
   +'<button class="btn" onclick="createNb()">建立筆記本</button>';
 }
 function createNb(){
@@ -131,22 +170,24 @@ function createNb(){
   if(!name){V.err='請輸入筆記本名稱。';return render()}
   if(days<3){V.err='期限至少要 3 天後。';return render()}
   const mode=[20,30,40].reduce((a,b)=>Math.abs(b-days)<Math.abs(a-days)?b:a);
-  const nb={id:uid(),name,start:today(),deadline:today()+days,mode,cards:[]};
+  const nb={id:uid(),name,start:today(),deadline:today()+days,mode,studyLang:f.studyLang||'en',explainLang:f.explainLang||'zh-TW',exampleLang:f.exampleLang||f.studyLang||'en',cards:[]};
   S.nbs.push(nb);save();go('detail',nb.id);
 }
 function detail(){
   const nb=get(V.id);if(!nb)return home();
   const b=build(nb),n=b.due.length+b.take.length,pl=b.pl,learned=nb.cards.filter(c=>c.state!=='new').length,pct=nb.cards.length?Math.round(learned/nb.cards.length*100):0;
   const badge=pl.R<=0?'<span class="pill x">已到期</span>':pl.sprint?'<span class="pill x">衝刺期</span>':'<span class="pill">學習期</span>';
+  const placeholder=(nb.studyLang||'en')==='en'?'每行一個：單字 | 解釋\n例如：resilient | able to recover quickly':'每行一個：單字或片語 | 解釋（語言依照本筆記本設定）';
   return back('home')+'<div class="row"><h1>'+esc(nb.name)+'</h1>'+badge+'</div>'
+  +'<p class="sub">學習：'+esc(langName(nb.studyLang||'en'))+'　解釋：'+esc(langName(nb.explainLang||'en'))+'　例句：'+esc(langName(nb.exampleLang||nb.studyLang||'en'))+'</p>'
   +'<div class="card"><div class="row"><span>'+(pl.R>0?'還有 '+pl.R+' 天（'+dstr(nb.deadline)+' 截止）':'已超過期限')+'</span><span class="sub">'+nb.mode+' 天模式</span></div>'
   +'<div class="bar"><i style="width:'+pct+'%"></i></div><div class="sub">已學 '+learned+' ／ '+nb.cards.length+' 個單字'+(b.quota?'　每日新卡約 '+b.quota+' 張':'')+'</div></div>'
   +'<button class="btn" '+(n?'':'disabled')+' onclick="startReview(\''+nb.id+'\')">'+(n?'複習今日 '+n+' 字':'今天沒有要複習的字')+'</button>'
-  +'<button class="btn ghost" onclick="go(\'scan\',\''+nb.id+'\')">📷 拍照新增單字 (Gemini)</button>'
-  +'<h2>新增單字</h2><textarea id="ta" placeholder="每行一個：單字 | 英文解釋&#10;例如：resilient | able to recover quickly"></textarea>'
+  +'<button class="btn ghost" onclick="go(\'scan\',\''+nb.id+'\')">📷 拍照新增單字（'+esc(langName(nb.studyLang||'en'))+'）</button>'
+  +'<h2>新增單字</h2><textarea id="ta" placeholder="'+esc(placeholder)+'"></textarea>'
   +'<button class="btn ghost" onclick="addWords()">加入單字</button>'
-  +'<button class="link" onclick="loadSample()">載入範例單字（16 個）</button>'+(V.msg?'<div class="msg">'+V.msg+'</div>':'')
-  +'<h2>單字（'+nb.cards.length+'）</h2><div class="card">'+(nb.cards.map(c=>'<div class="w"><div><b>'+esc(c.term)+'</b><span>'+esc(c.def||'（尚無解釋）')+'</span></div>'+(c.src==='ai'?'<span class="pill">AI 補充</span>':'')+'</div>').join('')||'<span class="sub">還沒有單字。</span>')+'</div>'
+  +((nb.studyLang||'en')==='en'?'<button class="link" onclick="loadSample()">載入英文範例單字（16 個）</button>':'')+(V.msg?'<div class="msg">'+esc(V.msg)+'</div>':'')
+  +'<h2>單字（'+nb.cards.length+'）</h2><div class="card">'+(nb.cards.map(c=>'<div class="w"><div><b>'+esc(c.term)+'</b><span>'+esc(c.def||'（尚無解釋）')+'</span>'+(c.ex?'<span class="sub">例句：'+esc(c.ex)+'</span>':'')+'</div>'+(c.src==='ai'?'<span class="pill">AI 補充</span>':'')+'</div>').join('')||'<span class="sub">還沒有單字。</span>')+'</div>'
   +'<h2>測試工具</h2><button class="btn ghost" style="margin-top:0" onclick="S.off++;save();render()">快轉 1 天（目前 +'+(S.off||0)+'）</button>'
   +'<button class="link" onclick="S.off=0;save();render()">重設日期</button><br>'
   +'<button class="link" onclick="delNb()">'+(V.arm?'再按一次，確認刪除這本筆記本':'刪除筆記本')+'</button>';
@@ -162,7 +203,7 @@ function review(){
   const nb=get(sess.id),c=nb.cards.find(x=>x.id===sess.q[0]),pct=Math.min(100,Math.round(sess.done/Math.max(1,sess.total)*100));
   const R=[['again','重來','a'],['hard','困難','h'],['good','良好','g'],['easy','簡單','']];
   return '<div class="top"><button class="back" onclick="go(\'detail\',\''+nb.id+'\')">‹ 結束</button><b>今日複習</b><span class="sub">'+sess.done+' ／ '+sess.total+'</span></div><div class="bar"><i style="width:'+pct+'%"></i></div>'
-  +'<div class="flash" onclick="sess.flip=!sess.flip;render()">'+(sess.flip?'<div class="small">'+esc(c.term)+'</div><div class="def">'+esc(c.def||'（尚無解釋）')+'</div>'+(c.ex?'<div class="ex">'+esc(c.ex)+'</div>':'')+'<div class="small">點一下翻回正面</div>':'<div class="term">'+esc(c.term)+'</div>'+(c.pos?'<div class="small">'+esc(c.pos)+'</div>':'')+'<div class="small">點一下卡片，看英文解釋</div>')+'</div>'
+  +'<div class="flash" onclick="sess.flip=!sess.flip;render()">'+(sess.flip?'<div class="small">'+esc(c.term)+'</div><div class="def">'+esc(c.def||'（尚無解釋）')+'</div>'+(c.ex?'<div class="ex">'+esc(c.ex)+'</div>':'')+'<div class="small">點一下翻回正面</div>':'<div class="term">'+esc(c.term)+'</div>'+(c.pos?'<div class="small">'+esc(c.pos)+'</div>':'')+'<div class="small">點一下卡片，查看解釋</div>')+'</div>'
   +(sess.flip?'<div class="rate">'+R.map(([k,l,cl])=>'<button class="'+cl+'" onclick="rate(\''+k+'\')">'+l+'<small>'+lab(nextInterval(nb,c,k))+'</small></button>').join('')+'</div>':'<p class="small" style="text-align:center">翻面後選擇記得多熟</p>');
 }
 function rate(r){
@@ -189,28 +230,42 @@ try{Object.assign(CFG,JSON.parse(localStorage.getItem(CK)||'{}'))}catch(e){}
 // 將已停用的舊模型自動更新；其他自訂模型則保留給使用者。
 if(!CFG.model||['gemini-1.5-flash','gemini-1.5-pro','gemini-2.0-flash','gemini-2.0-flash-lite','gemini-2.5-flash'].includes(CFG.model))CFG.model='gemini-3.8-flash';
 const saveCfg=()=>{try{localStorage.setItem(CK,JSON.stringify(CFG))}catch(e){console.warn('無法儲存設定',e)}};
-const PROMPT='You are reading a photo of a vocabulary notebook or textbook page. List the English words and phrases the learner is studying.\n'
-+'Rules:\n'
-+'1. Only include words or phrases that are fully visible and clearly legible. Skip anything cut off at an edge, blurry, or part of a neighbouring page.\n'
-+'2. If the photo already shows an English definition for an item, copy it exactly and set definition_source to "photo".\n'
-+'3. If an item has no definition in the photo, write a simple learner-dictionary definition of 15 words or fewer and set definition_source to "ai".\n'
-+'4. For phrases (more than one word) set pos to "phrase". Otherwise use n., v., adj., adv., prep., conj., etc.\n'
-+'5. Never add words that are not in the photo. Handwriting may be messy: if unsure about a word, still include it and set needs_review to true.\n'
-+'6. Give one short natural example sentence (15 words or fewer) for each item.\n'
-+'Return ONLY a JSON array. Each element: {"term":string,"pos":string,"definition":string,"definition_source":"photo" or "ai","example":string,"needs_review":boolean}';
+function makePrompt(nb){
+  const study=langPromptName(nb.studyLang||'en');
+  const explanation=langPromptName(nb.explainLang||'zh-TW');
+  const example=langPromptName(nb.exampleLang||nb.studyLang||'en');
+  return 'You are extracting vocabulary for a language-learning notebook from a photo of a textbook, word list, or handwritten notes.\n'
+    +'Target vocabulary language: '+study+'.\n'
+    +'Definition/output language: '+explanation+'.\n'
+    +'Example sentence language: '+example+'.\n'
+    +'Rules:\n'
+    +'1. Extract only clearly visible vocabulary items in the target vocabulary language. Include words and meaningful phrases, but skip page headings, instructions, unrelated body text, and neighbouring-page text.\n'
+    +'2. Preserve the original spelling, accents, diacritics, and writing system. Never invent vocabulary not present in the photo.\n'
+    +'3. If a definition in the photo is already written in the requested definition/output language, copy it faithfully and set definition_source to "photo". Otherwise provide a concise, accurate definition or translation in the requested definition/output language and set definition_source to "ai".\n'
+    +'4. Use a concise part-of-speech label where possible (for example n., v., adj., adv., or phrase). For multiword expressions, use "phrase".\n'
+    +'5. Provide one short, natural example sentence in the requested example sentence language. Keep explanations and examples concise to reduce waiting time.\n'
+    +'6. If a reading is uncertain, do not guess silently: include the best visible reading and set needs_review to true.\n'
+    +'7. Omit entries that are cut off, too blurry, or not confidently legible.\n'
+    +'Return ONLY a valid JSON array with no Markdown fences. Each element must have: {"term":string,"pos":string,"definition":string,"definition_source":"photo" or "ai","example":string,"needs_review":boolean}.';
+}
 function readImg(file){return new Promise((ok,bad)=>{const u=URL.createObjectURL(file),im=new Image();
   im.onload=()=>{const k=Math.min(1,1600/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=Math.round(im.width*k);c.height=Math.round(im.height*k);c.getContext('2d').drawImage(im,0,0,c.width,c.height);URL.revokeObjectURL(u);ok(c.toDataURL('image/jpeg',.85))};
   im.onerror=()=>{URL.revokeObjectURL(u);bad(new Error('無法讀取這張圖片，請換一張。'))};im.src=u})}
 async function pick(inp){const f=inp.files[0];if(!f)return;V.err='';V.img='';if(!f.type.startsWith('image/')){V.err='請選擇圖片檔案。';inp.value='';return render()}if(f.size>20*1024*1024){V.err='圖片太大，請選擇 20 MB 以下的圖片。';inp.value='';return render()}try{V.img=await readImg(f)}catch(e){V.err=e.message}finally{inp.value=''}render()}
 async function runScan(){
+  if(V.busy)return;
+  const nb=get(V.id);
+  if(!nb){V.err='找不到目前的筆記本，請返回首頁重新操作。';return render()}
+  if(!V.img){V.err='請先拍照或從相簿選取圖片。';return render()}
   if(!CFG.key){V.err='請先到首頁右上角的設定，輸入 Gemini API 金鑰。';return render()}
   const model=(CFG.model||'gemini-3.8-flash').trim();
   if(!model){V.err='請輸入模型名稱。';return render()}
   CFG.model=model;
+  const prompt=makePrompt(nb);
   V.busy=1;V.err='';render();
   try{
     const r=await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(model)+':generateContent',{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':CFG.key},
-      body:JSON.stringify({contents:[{parts:[{text:PROMPT},{inline_data:{mime_type:'image/jpeg',data:V.img.split(',')[1]}}]}],generationConfig:{responseMimeType:'application/json',temperature:0.2}})});
+      body:JSON.stringify({contents:[{parts:[{text:prompt},{inline_data:{mime_type:'image/jpeg',data:V.img.split(',')[1]}}]}],generationConfig:{responseMimeType:'application/json',temperature:0.1,maxOutputTokens:4096}})});
     const j=await r.json().catch(()=>({}));
     if(!r.ok){const m=(j.error&&j.error.message)||'';
       throw new Error(r.status===400&&/API key/i.test(m)?'API 金鑰無效，請到設定重新輸入。':r.status===429?'已超過免費額度，或請求太頻繁，請稍後再試。':r.status===404?'找不到模型「'+model+'」，請到設定改用官方支援的模型名稱。':r.status===403?'API 金鑰沒有使用此模型的權限，請確認金鑰、專案與模型可用性。':'辨識失敗（'+r.status+'）：'+m)}
@@ -223,10 +278,9 @@ async function runScan(){
       else if(arr&&Array.isArray(arr.words))arr=arr.words;
       else throw new Error('辨識結果不是有效的單字清單，請再試一次。');
     }
-    const nb=get(V.id);
-    if(!nb)throw new Error('找不到目前的筆記本，請返回首頁重新操作。');
-    const seenTerms=new Set(nb.cards.map(c=>String(c.term).toLowerCase()));
-    V.res=arr.filter(x=>x&&String(x.term||'').trim()).map(x=>{const term=String(x.term).trim(),key=term.toLowerCase(),dup=seenTerms.has(key);seenTerms.add(key);
+    const currentLang=nb.studyLang||'en';
+    const seenTerms=new Set(nb.cards.filter(c=>(c.language||currentLang)===currentLang).map(c=>termKey(c.term)));
+    V.res=arr.filter(x=>x&&String(x.term||'').trim()).map(x=>{const term=String(x.term).trim(),key=termKey(term),dup=seenTerms.has(key);seenTerms.add(key);
       return{term,pos:String(x.pos||''),def:String(x.definition||''),src:x.definition_source==='photo'?'photo':'ai',ex:String(x.example||''),rev:!!x.needs_review,dup,keep:!dup}});
     V.busy=0;V.n='confirm';
   }catch(e){V.busy=0;V.err=e instanceof TypeError?'無法連線到 Google。若你是在預覽頁開啟，這裡不允許對外連線，請改用自己的網址（例如 GitHub Pages）。':e instanceof SyntaxError?'辨識結果格式有誤，請再試一次。':e.message}
@@ -243,13 +297,15 @@ function scan(){
 }
 function confirmv(){
   const results=Array.isArray(V.res)?V.res:[];
-  const n=results.filter(item=>item.keep&&item.term.trim()).length;
+  const nb=get(V.id);
+  const studyLabel=langName(nb&&nb.studyLang||'en'),defLabel=langName(nb&&nb.explainLang||'zh-TW'),exampleLabel=langName(nb&&nb.exampleLang||(nb&&nb.studyLang)||'en');
+  const n=results.filter(item=>item.keep&&String(item.term||'').trim()).length;
   const rows=results.map((item,index)=>'<div class="card it"><input type="checkbox" aria-label="加入" '+(item.keep?'checked':'')+' onchange="V.res['+index+'].keep=this.checked;render()"><div class="f">'
-    +'<label>英文單字／片語</label><input value="'+esc(item.term)+'" aria-label="單字" oninput="V.res['+index+'].term=this.value">'
-    +'<label>英文解釋</label><textarea aria-label="英文解釋" oninput="V.res['+index+'].def=this.value">'+esc(item.def)+'</textarea>'
-    +'<label>例句</label><textarea aria-label="例句" oninput="V.res['+index+'].ex=this.value">'+esc(item.ex||'')+'</textarea>'
+    +'<label>'+esc(studyLabel)+' 單字／片語</label><input value="'+esc(item.term)+'" aria-label="單字" oninput="V.res['+index+'].term=this.value">'
+    +'<label>解釋（'+esc(defLabel)+'）</label><textarea aria-label="解釋" oninput="V.res['+index+'].def=this.value">'+esc(item.def)+'</textarea>'
+    +'<label>例句（'+esc(exampleLabel)+'）</label><textarea aria-label="例句" oninput="V.res['+index+'].ex=this.value">'+esc(item.ex||'')+'</textarea>'
     +'<div>'+(item.pos?'<span class="pill">'+esc(item.pos)+'</span> ':'')+(item.src==='photo'?'<span class="pill">照片原文</span> ':item.src==='ai'?'<span class="pill">AI 補充</span> ':'')+(item.dup?'<span class="pill x">已存在</span> ':'')+(item.rev?'<span class="pill x">請確認</span>':'')+'</div></div></div>').join('');
-  return '<button class="back" onclick="go(\'scan\',V.id)">‹ 重拍</button><h1>確認單字</h1><p class="sub">辨識到 '+results.length+' 個項目，已選 '+n+' 個。可修改單字、解釋與例句，取消勾選即可略過。</p>'
+  return '<button class="back" onclick="go(\'scan\',V.id)">‹ 重拍</button><h1>確認單字</h1><p class="sub">辨識到 '+results.length+' 個「'+esc(studyLabel)+'」項目，已選 '+n+' 個。可修改單字、解釋與例句，取消勾選即可略過。</p>'
   +(rows||'<div class="note">沒有辨識到單字。請重拍，讓文字更清楚。</div>')
   +'<button class="btn" '+(n?'':'disabled')+' onclick="addConfirmed()">加入筆記本（'+n+'）</button>';
 }
@@ -264,6 +320,7 @@ function settings(){
   return back('home')+'<h1>設定</h1><label for="k">Gemini API 金鑰</label><input id="k" type="password" value="'+esc(CFG.key)+'" autocomplete="off" oninput="CFG.key=this.value.trim()">'
   +'<p class="sub">請從 Google AI Studio 管理 API 金鑰。金鑰會存於此瀏覽器的本機儲存空間；請勿在共用裝置輸入，也不要把含有金鑰的頁面公開分享。</p>'
   +'<label for="m">模型名稱</label><input id="m" list="ml" value="'+esc(CFG.model)+'" oninput="CFG.model=this.value.trim()"><datalist id="ml"><option value="gemini-3.8-flash"><option value="gemini-3.6-flash"><option value="gemini-3.5-flash-lite"><option value="gemini-3.1-flash-lite"></datalist>'
+  +'<p class="sub">可先使用 gemini-3.8-flash 作為品質基準；若想測試較低延遲與成本，可改用 gemini-3.5-flash-lite。實際速度與免費額度依 Google 當前政策、圖片大小及網路狀況而異。</p>'
   +'<button class="btn" onclick="saveCfg();V.msg=\'已儲存\';render()">儲存</button>'+(V.msg?'<div class="msg">'+V.msg+'</div>':'');
 }
 const VIEWS={home,new:newv,detail,review,done,scan,confirm:confirmv,settings};
